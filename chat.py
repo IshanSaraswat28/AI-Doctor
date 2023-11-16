@@ -1,29 +1,52 @@
-import re
 import openai
+import pyttsx3
+import speech_recognition as sr
 from time import time, sleep
 from halo import Halo
 import textwrap
-import yaml
 
+# Initialize the text-to-speech engine
+engine = pyttsx3.init()
 
+voices = engine.getProperty('voices')
 
+# Set the voice to a female voice (you may need to adjust the index based on the available voices on your system)
+engine.setProperty('voice', voices[1].id)
 
+# Set the OpenAI API key
+openai.api_key = "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"
 
-def save_file(filepath, content):
-    with open(filepath, 'w', encoding='utf-8') as outfile:
-        outfile.write(content)
+# Initialize the speech recognition engine
+recognizer = sr.Recognizer()
 
+# Function to add text to the conversation
+def add_to_conversation(text, role="AI Bot"):
+    print(f"{role}: {text}")
+    speak_text(text)
 
+# Function to speak the text
+def speak_text(text):
+    engine.say(text)
+    engine.runAndWait()
 
-def open_file(filepath):
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as infile:
-        return infile.read()
+# Function to convert speech to text
+def recognize_speech():
+    with sr.Microphone() as source:
+        print("Listening...")
+        try:
+            audio = recognizer.listen(source)
+            user_input = recognizer.recognize_google(audio)
+            print(f"You (Voice): {user_input}")
+            return user_input
+        except sr.UnknownValueError:
+            print("Speech Recognition could not understand the audio")
+        except sr.RequestError as e:
+            print(f"Speech Recognition error: {str(e)}")
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
 
-
-
-
-
-def chatbot(conversation, model="gpt-3.5-turbo-0301", temperature=0, max_tokens=2000):
+# Function to interact with the chatbot
+def chatbot(conversation, model="gpt-3.5-turbo", temperature=0, max_tokens=3000):
     max_retry = 7
     retry = 0
     while True:
@@ -41,75 +64,30 @@ def chatbot(conversation, model="gpt-3.5-turbo-0301", temperature=0, max_tokens=
             print(f'\n\nError communicating with OpenAI: "{oops}"')
             exit(5)
 
-
-def chat_print(text):
-    formatted_lines = [textwrap.fill(line, width=120, initial_indent='    ', subsequent_indent='    ') for line in text.split('\n')]
-    formatted_text = '\n'.join(formatted_lines)
-    print('\n\n\nCHATBOT:\n\n%s' % formatted_text)
-
-
-if __name__ == '__main__':
-    openai.api_key = "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"
-    
-    conversation = list()
-    conversation.append({'role': 'system', 'content': open_file('system_01_intake.md')})
-    user_messages = list()
-    all_messages = list()
-    print('Describe your symptoms to the DOCTOR. Type DONE when done.')
-    
-    
+# Function to interact with the chatbot
+def chat_with_bot(conversation):
     while True:
-        # get user input
-        text = input('\n\nPATIENT: ').strip()
-        if text == 'DONE':
-            break
+        text = recognize_speech()
+        if not text:
+            continue
+
         user_messages.append(text)
-        all_messages.append('PATIENT: %s' % text)
+        all_messages.append(f'PATIENT: {text}')
         conversation.append({'role': 'user', 'content': text})
+
         response, tokens = chatbot(conversation)
         conversation.append({'role': 'assistant', 'content': response})
-        all_messages.append('DOCTOR: %s' % response)
-        print('\n\DOCTOR: %s' % response)
-    
-    
-    
-    print('\n\nGenerating Intake Notes')
-    conversation = list()
-    conversation.append({'role': 'system', 'content': open_file('system_02_prepare_notes.md')})
-    text_block = '\n\n'.join(all_messages)
-    chat_log = '<<BEGIN PATIENT INTAKE CHAT>>\n\n%s\n\n<<END PATIENT INTAKE CHAT>>' % text_block
-    save_file('logs/log_%s_chat.txt' % time(), chat_log)
-    conversation.append({'role': 'user', 'content': chat_log})
-    notes, tokens = chatbot(conversation)
-    print('\n\nNotes version of conversation:\n\n%s' % notes)
-    save_file('logs/log_%s_notes.txt' % time(), notes)
-    
-    
+        all_messages.append(f'INTAKE: {response}')
+        add_to_conversation(response)
 
-    print('\n\nGenerating Hypothesis Report')
-    conversation = list()
-    conversation.append({'role': 'system', 'content': open_file('system_03_diagnosis.md')})
-    conversation.append({'role': 'user', 'content': notes})
-    report, tokens = chatbot(conversation)
-    save_file('logs/log_%s_diagnosis.txt' % time(), report)
-    print('\n\nHypothesis Report:\n\n%s' % report)
+        if text.lower() == 'done':
+            break
 
-    
+if __name__ == '__main__':
+    user_messages = list()
+    all_messages = list()
+    conversation = [{'role': 'system', 'content': 'Initializing chatbot...'}]
 
-    print('\n\nPreparing for Clinical Evaluation')
-    conversation = list()
-    conversation.append({'role': 'system', 'content': open_file('system_04_clinical.md')})
-    conversation.append({'role': 'user', 'content': notes})
-    clinical, tokens = chatbot(conversation)
-    save_file('logs/log_%s_clinical.txt' % time(), clinical)
-    print('\n\nClinical Evaluation:\n\n%s' % clinical)
+    print('Describe your symptoms to the intake bot. Say "DONE" when done.')
 
-    
-
-    print('\n\nGenerating Referrals and Tests')
-    conversation = list()
-    conversation.append({'role': 'system', 'content': open_file('system_05_referrals.md')})
-    conversation.append({'role': 'user', 'content': notes})
-    referrals, tokens = chatbot(conversation)
-    save_file('logs/log_%s_referrals.txt' % time(), referrals)
-    print('\n\nReferrals and Tests:\n\n%s' % referrals)
+    chat_with_bot(conversation)
