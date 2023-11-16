@@ -3,7 +3,7 @@ import pyttsx3
 import speech_recognition as sr
 from time import time, sleep
 from halo import Halo
-import textwrap
+
 
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
@@ -14,7 +14,7 @@ voices = engine.getProperty('voices')
 engine.setProperty('voice', voices[1].id)
 
 # Set the OpenAI API key
-openai.api_key = "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"
+openai.api_key = "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"
 
 # Initialize the speech recognition engine
 recognizer = sr.Recognizer()
